@@ -99,3 +99,69 @@ function lms_student_may_access_course_content(?array $enrollment): bool
     $s = $enrollment['status'];
     return $s === 'enrolled' || $s === 'completed';
 }
+
+/**
+ * @return list<array<string, mixed>>
+ */
+function lms_list_course_forums(int $courseId): array
+{
+    $stmt = get_pdo()->prepare(
+        'SELECT f.forum_id, f.forum_title, f.description, t.thread_id 
+         FROM forums f 
+         INNER JOIN threads t ON t.forum_id = f.forum_id 
+         WHERE f.course_id = :cid 
+         ORDER BY f.created_at DESC'
+    );
+    $stmt->execute(['cid' => $courseId]);
+    return $stmt->fetchAll();
+}
+
+/**
+ * @return list<array<string, mixed>>
+ */
+function lms_list_forum_posts(int $threadId): array
+{
+    $stmt = get_pdo()->prepare(
+        'SELECT p.post_id, p.content, p.created_at, u.user_name, u.role::text as role 
+         FROM posts p 
+         INNER JOIN users u ON u.user_id = p.user_id 
+         WHERE p.thread_id = :tid 
+         ORDER BY p.created_at ASC'
+    );
+    $stmt->execute(['tid' => $threadId]);
+    return $stmt->fetchAll();
+}
+
+/**
+ * @return list<array{user_id: int, user_name: string, role: string}>
+ */
+function lms_list_message_recipients(int $currentUserId): array
+{
+    $stmt = get_pdo()->prepare(
+        "SELECT user_id, user_name, role::text as role FROM users 
+         WHERE role IN ('student', 'instructor') AND user_id != :uid 
+         ORDER BY role DESC, user_name ASC"
+    );
+    $stmt->execute(['uid' => $currentUserId]);
+    return $stmt->fetchAll();
+}
+
+/**
+ * @return list<array<string, mixed>>
+ */
+function lms_list_user_messages(int $userId): array
+{
+    $stmt = get_pdo()->prepare(
+        "SELECT m.message_id, m.subject, m.content, m.created_at, 
+                sender.user_name AS sender_name, 
+                recipient.user_name AS recipient_name, 
+                m.sender_id, m.recipient_id 
+         FROM messages m 
+         INNER JOIN users sender ON m.sender_id = sender.user_id 
+         INNER JOIN users recipient ON m.recipient_id = recipient.user_id 
+         WHERE m.recipient_id = :uid OR m.sender_id = :uid 
+         ORDER BY m.created_at DESC"
+    );
+    $stmt->execute(['uid' => $userId]);
+    return $stmt->fetchAll();
+}

@@ -161,7 +161,8 @@ CREATE TABLE forums (
   course_id   INTEGER NOT NULL REFERENCES courses(course_id) ON DELETE CASCADE,
   forum_title VARCHAR(255) NOT NULL,
   description TEXT,
-  created_at  TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+  created_at  TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  UNIQUE (course_id, forum_title)
 );
 
 CREATE TABLE threads (
@@ -580,13 +581,14 @@ BEGIN
 END;
 $$;
 
--- Creates a forum (board) for a course — not the same as sp_create_forum_thread (which adds a thread inside an existing forum).
+-- Creates a forum (board) and an initial thread for a course.
 CREATE OR REPLACE FUNCTION sp_create_forum(
   p_course_id INTEGER,
   p_user_id INTEGER,
   p_forum_title VARCHAR(255),
   p_description TEXT,
   OUT p_forum_id INTEGER,
+  OUT p_thread_id INTEGER,
   OUT p_message TEXT
 )
 LANGUAGE plpgsql
@@ -595,21 +597,34 @@ BEGIN
   IF NOT EXISTS (SELECT 1 FROM courses WHERE course_id = p_course_id) THEN
     p_message := 'course_not_found';
     p_forum_id := NULL;
+    p_thread_id := NULL;
     RETURN;
   END IF;
 
-  -- Staff only: course instructor, admin, or any instructor account (prototype).
+  -- Anyone (student enrolled/completed, instructor, admin) can create
   IF NOT EXISTS (
+    SELECT 1 FROM enrollments e
+    INNER JOIN students s ON s.student_id = e.student_id
+    WHERE e.course_id = p_course_id
+      AND e.status IN ('enrolled', 'completed')
+      AND s.user_id = p_user_id
+  ) AND NOT EXISTS (
     SELECT 1 FROM courses c
     INNER JOIN instructors i ON i.instructor_id = c.instructor_id
     WHERE c.course_id = p_course_id AND i.user_id = p_user_id
   ) AND NOT EXISTS (
-    SELECT 1 FROM users u WHERE u.user_id = p_user_id AND u.role = 'admin'
-  ) AND NOT EXISTS (
-    SELECT 1 FROM users u WHERE u.user_id = p_user_id AND u.role = 'instructor'
+    SELECT 1 FROM users u WHERE u.user_id = p_user_id AND u.role IN ('admin', 'instructor')
   ) THEN
     p_message := 'forbidden';
     p_forum_id := NULL;
+    p_thread_id := NULL;
+    RETURN;
+  END IF;
+
+  IF EXISTS (SELECT 1 FROM forums WHERE course_id = p_course_id AND forum_title = p_forum_title) THEN
+    p_message := 'duplicate_forum_title';
+    p_forum_id := NULL;
+    p_thread_id := NULL;
     RETURN;
   END IF;
 
@@ -617,15 +632,19 @@ BEGIN
   VALUES (p_course_id, p_forum_title, p_description, CURRENT_TIMESTAMP)
   RETURNING forum_id INTO p_forum_id;
 
+  INSERT INTO threads (forum_id, created_by, title, created_at)
+  VALUES (p_forum_id, p_user_id, p_forum_title, CURRENT_TIMESTAMP)
+  RETURNING thread_id INTO p_thread_id;
+
   p_message := 'ok';
 END;
 $$;
 
-CREATE OR REPLACE FUNCTION sp_create_forum_thread(
-  p_forum_id INTEGER,
+CREATE OR REPLACE FUNCTION sp_add_forum_post(
+  p_thread_id INTEGER,
   p_user_id INTEGER,
-  p_title VARCHAR(255),
-  OUT p_thread_id INTEGER,
+  p_content TEXT,
+  OUT p_post_id INTEGER,
   OUT p_message TEXT
 )
 LANGUAGE plpgsql
@@ -633,11 +652,14 @@ AS $$
 DECLARE
   v_course INTEGER;
 BEGIN
-  SELECT course_id INTO v_course FROM forums WHERE forum_id = p_forum_id;
+  SELECT f.course_id INTO v_course 
+  FROM threads t 
+  INNER JOIN forums f ON f.forum_id = t.forum_id 
+  WHERE t.thread_id = p_thread_id;
 
   IF v_course IS NULL THEN
-    p_message := 'forum_not_found';
-    p_thread_id := NULL;
+    p_message := 'thread_not_found';
+    p_post_id := NULL;
     RETURN;
   END IF;
 
@@ -653,18 +675,22 @@ BEGIN
     INNER JOIN instructors i ON i.instructor_id = c.instructor_id
     WHERE c.course_id = v_course AND i.user_id = p_user_id
   ) AND NOT EXISTS (
-    SELECT 1 FROM users u WHERE u.user_id = p_user_id AND u.role = 'admin'
-  ) AND NOT EXISTS (
-    SELECT 1 FROM users u WHERE u.user_id = p_user_id AND u.role = 'instructor'
+    SELECT 1 FROM users u WHERE u.user_id = p_user_id AND u.role IN ('admin', 'instructor')
   ) THEN
     p_message := 'forbidden';
-    p_thread_id := NULL;
+    p_post_id := NULL;
     RETURN;
   END IF;
 
-  INSERT INTO threads (forum_id, created_by, title, created_at)
-  VALUES (p_forum_id, p_user_id, p_title, CURRENT_TIMESTAMP)
-  RETURNING thread_id INTO p_thread_id;
+  IF TRIM(p_content) = '' THEN
+    p_message := 'empty_content';
+    p_post_id := NULL;
+    RETURN;
+  END IF;
+
+  INSERT INTO posts (thread_id, user_id, content, created_at, updated_at)
+  VALUES (p_thread_id, p_user_id, p_content, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+  RETURNING post_id INTO p_post_id;
 
   p_message := 'ok';
 END;

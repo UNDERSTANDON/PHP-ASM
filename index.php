@@ -59,6 +59,26 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
                     post_opt_str('submission_content'),
                     post_opt_str('submission_file_path')
                 );
+            } elseif ($action === 'student_create_forum') {
+                $testOutput = lms_sp_create_forum(
+                    post_int('course_id'),
+                    $user['user_id'],
+                    post_str('forum_title') !== '' ? post_str('forum_title') : 'New forum',
+                    post_opt_str('description')
+                );
+            } elseif ($action === 'student_add_post') {
+                $testOutput = lms_sp_add_forum_post(
+                    post_int('thread_id'),
+                    $user['user_id'],
+                    post_str('content')
+                );
+            } elseif ($action === 'student_send_message') {
+                $testOutput = lms_sp_send_message(
+                    $user['user_id'],
+                    post_int('recipient_id'),
+                    post_opt_str('subject'),
+                    post_str('content') !== '' ? post_str('content') : '—'
+                );
             } else {
                 $testError = 'Unknown action.';
             }
@@ -121,9 +141,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
     }
 }
 
-/** @var array<int, array{course: array, enrollment: ?array, materials: list, assessments: list}> */
+/** @var array<int, array{course: array, enrollment: ?array, materials: list, assessments: list, forums: list}> */
 $courseDetails = [];
 if ($user['role'] === 'student' && $studentId !== null) {
+
     foreach ($courses as $c) {
         $cid = (int) $c['course_id'];
         $en = lms_get_enrollment($studentId, $cid);
@@ -132,6 +153,7 @@ if ($user['role'] === 'student' && $studentId !== null) {
             'enrollment'  => $en,
             'materials'   => [],
             'assessments' => [],
+            'forums'      => [],
         ];
         if (lms_student_may_access_course_content($en)) {
             $detail['materials'] = lms_list_materials_for_course($cid);
@@ -140,6 +162,11 @@ if ($user['role'] === 'student' && $studentId !== null) {
                 $a['submission'] = lms_get_student_submission((int) $a['assessment_id'], $studentId);
                 $detail['assessments'][] = $a;
             }
+            $forums = lms_list_course_forums($cid);
+            foreach ($forums as &$f) {
+                $f['posts'] = lms_list_forum_posts((int) $f['thread_id']);
+            }
+            $detail['forums'] = $forums;
         }
         $courseDetails[$cid] = $detail;
     }
@@ -186,7 +213,7 @@ layout_nav('home');
         <?php else : ?>
             <p class="note">There <?= $courseCount === 1 ? 'is' : 'are' ?> <strong><?= (int) $courseCount ?></strong> course<?= $courseCount === 1 ? '' : 's' ?> available.</p>
 
-            <?php foreach ($courses as $c) :
+                    <?php foreach ($courses as $c) :
                 $cid = (int) $c['course_id'];
                 $d = $courseDetails[$cid] ?? null;
                 $en = $d['enrollment'] ?? null;
@@ -269,6 +296,49 @@ layout_nav('home');
                                 </div>
                             <?php endforeach; ?>
                         <?php endif; ?>
+
+                        <br>
+                        <h3 class="sub-heading">Forum</h3>
+                        <details>
+                            <summary style="cursor: pointer; padding: 4px 10px; background: #eee; border: 1px solid #ccc; display: inline-block; font-size: 0.9em; border-radius: 4px;">Show more</summary>
+                            <div style="margin-top: 15px;">
+                                <?php if (empty($d['forums'])) : ?>
+                                    <p class="note">No forums for this course yet.</p>
+                                <?php else : ?>
+                                    <?php foreach ($d['forums'] as $forum) : ?>
+                                        <div class="card assessment-block" style="background: #fafafa; margin-bottom: 10px;">
+                                            <p><strong><?= htmlspecialchars((string) $forum['forum_title']) ?></strong></p>
+                                            
+                                            <div style="margin: 10px 0; padding-left: 10px; border-left: 3px solid #ddd;">
+                                                <?php foreach ($forum['posts'] as $post) : ?>
+                                                    <div style="margin-bottom: 8px;">
+                                                        <strong><?= htmlspecialchars($post['user_name']) ?></strong> <span style="font-size:0.8em; color:#888;">(<?= htmlspecialchars($post['role']) ?>, <?= htmlspecialchars($post['created_at']) ?>)</span><br>
+                                                        <span style="color: #333;"><?= nl2br(htmlspecialchars($post['content'])) ?></span>
+                                                    </div>
+                                                <?php endforeach; ?>
+                                            </div>
+
+                                            <form method="post" class="inline-form" style="margin-top: 10px;">
+                                                <input type="hidden" name="action" value="student_add_post">
+                                                <input type="hidden" name="thread_id" value="<?= (int) $forum['thread_id'] ?>">
+                                                <input type="text" name="content" required placeholder="Type a message..." style="width: 60%; padding: 4px;">
+                                                <button type="submit" style="padding: 4px 8px;">Reply</button>
+                                            </form>
+                                        </div>
+                                    <?php endforeach; ?>
+                                <?php endif; ?>
+
+                                <div style="margin-top: 15px; border-top: 1px solid #eee; padding-top: 10px;">
+                                    <form method="post" class="inline-form">
+                                        <input type="hidden" name="action" value="student_create_forum">
+                                        <input type="hidden" name="course_id" value="<?= $cid ?>">
+                                        <input type="text" name="forum_title" required placeholder="New forum title..." style="width: 50%; padding: 4px;">
+                                        <button type="submit" style="padding: 4px 8px;">Create Forum</button>
+                                    </form>
+                                </div>
+                            </div>
+                        </details>
+
                     <?php elseif ($en !== null && ! lms_student_may_access_course_content($en)) : ?>
                         <p class="note">Materials and assessments appear after you are actively enrolled (status <code>enrolled</code> or <code>completed</code>).</p>
                     <?php endif; ?>

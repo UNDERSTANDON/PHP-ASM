@@ -153,9 +153,9 @@ function lms_sp_refresh_student_progress(int $studentId, int $courseId): array
 }
 
 /**
- * Create a forum (board) for a course. Returns new forum_id.
+ * Create a forum (board) and thread for a course. Returns new forum_id and thread_id.
  *
- * @return array{forum_id: ?int, message: string}
+ * @return array{forum_id: ?int, thread_id: ?int, message: string}
  */
 function lms_sp_create_forum(
     int $courseId,
@@ -173,9 +173,11 @@ function lms_sp_create_forum(
     ]);
     $row = $stmt->fetch() ?: [];
     $fid = $row['p_forum_id'] ?? null;
+    $tid = $row['p_thread_id'] ?? null;
     return [
-        'forum_id' => $fid !== null && $fid !== '' ? (int) $fid : null,
-        'message'  => (string) ($row['p_message'] ?? ''),
+        'forum_id'  => $fid !== null && $fid !== '' ? (int) $fid : null,
+        'thread_id' => $tid !== null && $tid !== '' ? (int) $tid : null,
+        'message'   => (string) ($row['p_message'] ?? ''),
     ];
 }
 
@@ -219,5 +221,28 @@ function lms_sp_send_message(
     return [
         'message_id' => $mid !== null && $mid !== '' ? (int) $mid : null,
         'message'    => (string) ($row['p_message'] ?? ''),
+    ];
+}
+
+/**
+ * @return array{post_id: ?int, message: string}
+ */
+function lms_sp_add_forum_post(
+    int $threadId,
+    int $userId,
+    string $content
+): array {
+    $sql = 'SELECT * FROM sp_add_forum_post(:tid, :uid, :content)';
+    $stmt = get_pdo()->prepare($sql);
+    $stmt->execute([
+        'tid'     => $threadId,
+        'uid'     => $userId,
+        'content' => $content,
+    ]);
+    $row = $stmt->fetch() ?: [];
+    $pid = $row['p_post_id'] ?? null;
+    return [
+        'post_id' => $pid !== null && $pid !== '' ? (int) $pid : null,
+        'message' => (string) ($row['p_message'] ?? ''),
     ];
 }

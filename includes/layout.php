@@ -42,6 +42,7 @@ function layout_nav(string $current = ''): void
                 <a href="<?= htmlspecialchars(php_asm_url('login.php')) ?>"<?= $current === 'login' ? ' class="active"' : '' ?>>Login</a>
                 <a href="<?= htmlspecialchars(php_asm_url('register.php')) ?>"<?= $current === 'register' ? ' class="active"' : '' ?>>Register</a>
             <?php else : ?>
+                <a href="<?= htmlspecialchars(php_asm_url('messages.php')) ?>"<?= $current === 'messages' ? ' class="active"' : '' ?>>Messages</a>
                 <span class="nav-user">
                     <span class="role role-<?= htmlspecialchars($user['role']) ?>"><?= htmlspecialchars($user['role']) ?></span>
                     <?= htmlspecialchars($user['user_name']) ?>
