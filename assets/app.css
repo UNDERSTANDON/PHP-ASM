@@ -1,0 +1,223 @@
+:root {
+    color-scheme: light dark;
+}
+
+body {
+    font-family: system-ui, sans-serif;
+    margin: 0;
+    line-height: 1.45;
+    max-width: 40rem;
+    padding: 0 1.25rem 2rem;
+}
+
+.nav {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.75rem 1rem;
+    padding: 0.75rem 0;
+    margin-bottom: 1rem;
+    border-bottom: 1px solid #8884;
+    max-width: none;
+}
+
+.nav .brand {
+    font-weight: 600;
+    margin-right: auto;
+}
+
+.nav-links {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.75rem 1rem;
+}
+
+.nav a {
+    color: inherit;
+}
+
+.nav a.active {
+    text-decoration: underline;
+}
+
+.nav-user {
+    font-size: 0.9rem;
+    opacity: 0.9;
+}
+
+.role {
+    display: inline-block;
+    font-size: 0.7rem;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    padding: 0.15rem 0.4rem;
+    border-radius: 4px;
+    margin-right: 0.35rem;
+    background: #8883;
+}
+
+.role-student {
+    background: #2863;
+}
+
+.role-instructor {
+    background: #6633;
+}
+
+.role-admin {
+    background: #9333;
+}
+
+h1 {
+    font-size: 1.2rem;
+    margin-top: 0;
+}
+
+h2 {
+    font-size: 1rem;
+    margin: 1.25rem 0 0.5rem;
+    border-bottom: 1px solid #8884;
+    padding-bottom: 0.25rem;
+}
+
+.card {
+    border: 1px solid #8884;
+    border-radius: 6px;
+    padding: 0.75rem 1rem;
+    margin: 0.75rem 0;
+}
+
+.row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem 1rem;
+    align-items: center;
+    margin: 0.35rem 0;
+}
+
+label {
+    font-size: 0.85rem;
+    min-width: 6.5rem;
+}
+
+input[type="text"],
+input[type="email"],
+input[type="password"],
+input[type="number"],
+select {
+    width: 100%;
+    max-width: 20rem;
+    padding: 0.25rem 0.45rem;
+    box-sizing: border-box;
+}
+
+.card input[type="number"] {
+    max-width: 8rem;
+}
+
+input.w-wide {
+    max-width: 22rem;
+}
+
+textarea {
+    width: 100%;
+    max-width: 22rem;
+    min-height: 3rem;
+    box-sizing: border-box;
+    font: inherit;
+}
+
+button,
+.btn {
+    padding: 0.35rem 0.65rem;
+    cursor: pointer;
+    font: inherit;
+}
+
+pre {
+    margin: 0.4rem 0 0;
+    font-size: 0.8rem;
+    overflow: auto;
+    background: #8882;
+    padding: 0.5rem;
+    border-radius: 4px;
+}
+
+.ok {
+    color: #0a7;
+}
+
+.err {
+    color: #c33;
+}
+
+.note {
+    font-size: 0.85rem;
+    opacity: 0.9;
+}
+
+.form-errors {
+    color: #c33;
+    font-size: 0.9rem;
+    margin: 0.5rem 0;
+}
+
+.flash {
+    padding: 0.5rem 0.75rem;
+    border-radius: 4px;
+    background: #8883;
+    margin-bottom: 1rem;
+    font-size: 0.9rem;
+}
+
+.flash.ok {
+    background: #2a53;
+    color: inherit;
+}
+
+.dash-role-block {
+    margin-top: 0.75rem;
+}
+
+.course-card {
+    margin-top: 1rem;
+}
+
+.course-heading {
+    font-size: 1.05rem;
+    margin: 0 0 0.5rem;
+}
+
+.sub-heading {
+    font-size: 0.95rem;
+    margin: 1rem 0 0.5rem;
+    border-bottom: 1px solid #8883;
+    padding-bottom: 0.25rem;
+}
+
+.enrollment-label {
+    margin: 0.5rem 0;
+}
+
+.inline-form {
+    display: inline-block;
+    margin: 0.25rem 0 0.75rem;
+}
+
+.material-list {
+    margin: 0.25rem 0 0;
+    padding-left: 1.25rem;
+}
+
+.material-list li {
+    margin: 0.35rem 0;
+}
+
+.assessment-block {
+    margin-top: 0.75rem;
+}
+
+.submit-form {
+    margin-top: 0.5rem;
+}

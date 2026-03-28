@@ -1,0 +1,94 @@
+3. Learning Management System (LMS)
+
+A university seeks a web-based Learning Management System (LMS) for managing academic activities. The LMS must include:
+• Course Management: Organize courses, upload materials, and manage student enrollment efficiently.
+• Student Interaction: Facilitate communication between students and instructors through forums or messaging systems.
+• Assessment Tools: Enable instructors to create quizzes, assignments, and track student progress.
+• Analytics Dashboard: Provide insights into student performance and course effectiveness.
+
+Requirements:
++ DB
++ Must use PHP
++ XAMPP
+
+ERD (PostgreSQL): 
+
+-- ENUM TYPES
+CREATE TYPE user_role AS ENUM ('student', 'instructor', 'admin');
+CREATE TYPE enrollment_status AS ENUM ('enrolled', 'pending', 'dropped', 'completed');
+CREATE TYPE assessment_type AS ENUM ('quiz', 'assignment', 'exam', 'project');
+CREATE TYPE submission_status AS ENUM ('submitted', 'graded', 'pending', 'late');
+
+-- CORE TABLES
+Users (user_id SERIAL pk, user_name varchar, user_email varchar UNIQUE, user_phone varchar, password_hash varchar, role user_role, created_at timestamp, updated_at timestamp)
+
+Instructors (instructor_id SERIAL pk, user_id int fk UNIQUE, bio text, department varchar, created_at timestamp)
+Instructors(user_id) REFERENCES Users(user_id) ON DELETE CASCADE
+-- Only records where Users.role = 'instructor' or 'admin'
+
+Students (student_id SERIAL pk, user_id int fk UNIQUE, enrollment_number varchar UNIQUE, major varchar, created_at timestamp)
+Students(user_id) REFERENCES Users(user_id) ON DELETE CASCADE
+-- Only records where Users.role = 'student'
+
+-- COURSE STRUCTURE
+Courses (course_id SERIAL pk, course_code varchar UNIQUE, course_name varchar, description text, credit int, instructor_id int fk, capacity int, created_at timestamp, updated_at timestamp)
+Courses(instructor_id) REFERENCES Instructors(instructor_id)
+
+Modules (module_id SERIAL pk, course_id int fk, module_number int, module_title varchar, description text, created_at timestamp)
+Modules(course_id) REFERENCES Courses(course_id) ON DELETE CASCADE
+-- Organizes course content into weeks/sections
+
+Enrollments (enrollment_id SERIAL pk, student_id int fk, course_id int fk, enrollment_date timestamp, status enrollment_status, grade varchar, final_score decimal(5,2), created_at timestamp, updated_at timestamp)
+Enrollments(student_id) REFERENCES Students(student_id) ON DELETE CASCADE
+Enrollments(course_id) REFERENCES Courses(course_id) ON DELETE CASCADE
+UNIQUE (student_id, course_id)
+
+-- MATERIALS & CONTENT
+Materials (material_id SERIAL pk, module_id int fk, material_title varchar, description text, file_name varchar, file_path varchar, file_type varchar, upload_date timestamp, created_at timestamp)
+Materials(module_id) REFERENCES Modules(module_id) ON DELETE CASCADE
+
+MaterialAccess (access_id SERIAL pk, material_id int fk, student_id int fk, accessed_at timestamp)
+MaterialAccess(material_id) REFERENCES Materials(material_id) ON DELETE CASCADE
+MaterialAccess(student_id) REFERENCES Students(student_id) ON DELETE CASCADE
+-- Track student access to materials for analytics
+
+-- ASSESSMENT & SUBMISSIONS
+Assessment (assessment_id SERIAL pk, course_id int fk, assessment_type assessment_type, title varchar, description text, total_points int, due_date timestamp, created_at timestamp)
+Assessment(course_id) REFERENCES Courses(course_id) ON DELETE CASCADE
+
+Submissions (submission_id SERIAL pk, assessment_id int fk, student_id int fk, content text, file_path varchar, submitted_at timestamp, status submission_status, score int, feedback text, graded_at timestamp, graded_by int fk)
+Submissions(assessment_id) REFERENCES Assessment(assessment_id) ON DELETE CASCADE
+Submissions(student_id) REFERENCES Students(student_id) ON DELETE CASCADE
+Submissions(graded_by) REFERENCES Instructors(instructor_id)
+
+-- COMMUNICATION (Forums & Messaging)
+Forums (forum_id SERIAL pk, course_id int fk, forum_title varchar, description text, created_at timestamp)
+Forums(course_id) REFERENCES Courses(course_id) ON DELETE CASCADE
+
+Threads (thread_id SERIAL pk, forum_id int fk, created_by int fk, title varchar, created_at timestamp)
+Threads(forum_id) REFERENCES Forums(forum_id) ON DELETE CASCADE
+Threads(created_by) REFERENCES Users(user_id)
+
+Posts (post_id SERIAL pk, thread_id int fk, user_id int fk, content text, created_at timestamp, updated_at timestamp)
+Posts(thread_id) REFERENCES Threads(thread_id) ON DELETE CASCADE
+Posts(user_id) REFERENCES Users(user_id)
+
+Messages (message_id SERIAL pk, sender_id int fk, recipient_id int fk, subject varchar, content text, is_read bool DEFAULT false, created_at timestamp)
+Messages(sender_id) REFERENCES Users(user_id)
+Messages(recipient_id) REFERENCES Users(user_id)
+-- Direct messaging between students/instructors
+
+-- ANALYTICS & TRACKING
+CourseAnalytics (analytics_id SERIAL pk, course_id int fk, total_students int, avg_score decimal(5,2), completion_rate decimal(5,2), last_updated timestamp)
+CourseAnalytics(course_id) REFERENCES Courses(course_id) ON DELETE CASCADE
+
+StudentProgress (progress_id SERIAL pk, student_id int fk, course_id int fk, modules_completed int, assessments_submitted int, avg_score decimal(5,2), last_access timestamp)
+StudentProgress(student_id) REFERENCES Students(student_id) ON DELETE CASCADE
+StudentProgress(course_id) REFERENCES Courses(course_id) ON DELETE CASCADE
+UNIQUE (student_id, course_id)
+
+-- SESSION MANAGEMENT
+Sessions (session_id SERIAL pk, user_id int fk, token varchar UNIQUE, ip_address varchar, created_at timestamp, expires_at timestamp)
+Sessions(user_id) REFERENCES Users(user_id) ON DELETE CASCADE
+
+Functions for PostgreSQL, use mainly SP
