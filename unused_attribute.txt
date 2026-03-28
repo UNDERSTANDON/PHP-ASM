@@ -1,0 +1,7 @@
+List of unused attributes (currently):
+1. description in forum
+2. user_phone in users
+3. description in modules
+4. description in materials
+5. file_path in materials
+6. file_type in materials

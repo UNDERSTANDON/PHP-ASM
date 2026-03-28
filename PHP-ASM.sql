@@ -542,15 +542,21 @@ DECLARE
   v_course     INTEGER;
   v_student    INTEGER;
   v_max        INTEGER;
+  v_status     submission_status;
 BEGIN
-  SELECT s.assessment_id, s.student_id, a.course_id, a.total_points
-  INTO v_assessment, v_student, v_course, v_max
+  SELECT s.assessment_id, s.student_id, a.course_id, a.total_points, s.status
+  INTO v_assessment, v_student, v_course, v_max, v_status
   FROM submissions s
   INNER JOIN assessments a ON a.assessment_id = s.assessment_id
   WHERE s.submission_id = p_submission_id;
 
   IF v_assessment IS NULL THEN
     p_message := 'submission_not_found';
+    RETURN;
+  END IF;
+
+  IF v_status = 'graded' THEN
+    p_message := 'already_graded';
     RETURN;
   END IF;
 
@@ -723,6 +729,136 @@ BEGIN
   INSERT INTO messages (sender_id, recipient_id, subject, content, is_read, created_at)
   VALUES (p_sender_id, p_recipient_id, p_subject, p_content, FALSE, CURRENT_TIMESTAMP)
   RETURNING message_id INTO p_message_id;
+
+  p_message := 'ok';
+END;
+$$;
+
+CREATE OR REPLACE FUNCTION sp_create_course(
+  p_course_code VARCHAR(50),
+  p_course_name VARCHAR(255),
+  p_description TEXT,
+  p_credit INTEGER,
+  p_instructor_id INTEGER,
+  p_capacity INTEGER,
+  OUT p_course_id INTEGER,
+  OUT p_message TEXT
+)
+LANGUAGE plpgsql
+AS $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM instructors WHERE instructor_id = p_instructor_id) THEN
+    p_message := 'instructor_not_found';
+    p_course_id := NULL;
+    RETURN;
+  END IF;
+
+  IF EXISTS (SELECT 1 FROM courses WHERE course_code = p_course_code) THEN
+    p_message := 'duplicate_course_code';
+    p_course_id := NULL;
+    RETURN;
+  END IF;
+
+  INSERT INTO courses (course_code, course_name, description, credit, instructor_id, capacity, created_at, updated_at)
+  VALUES (p_course_code, p_course_name, p_description, p_credit, p_instructor_id, p_capacity, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+  RETURNING course_id INTO p_course_id;
+
+  p_message := 'ok';
+  PERFORM sp_refresh_course_analytics(p_course_id);
+END;
+$$;
+
+CREATE OR REPLACE FUNCTION sp_create_assessment(
+  p_course_id INTEGER,
+  p_instructor_id INTEGER,
+  p_type assessment_type,
+  p_title VARCHAR(255),
+  p_description TEXT,
+  p_total_points INTEGER,
+  p_due_date TIMESTAMP,
+  OUT p_assessment_id INTEGER,
+  OUT p_message TEXT
+)
+LANGUAGE plpgsql
+AS $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM courses WHERE course_id = p_course_id AND instructor_id = p_instructor_id) THEN
+    p_message := 'not_course_instructor';
+    p_assessment_id := NULL;
+    RETURN;
+  END IF;
+
+  INSERT INTO assessments (course_id, assessment_type, title, description, total_points, due_date, created_at)
+  VALUES (p_course_id, p_type, p_title, p_description, p_total_points, p_due_date, CURRENT_TIMESTAMP)
+  RETURNING assessment_id INTO p_assessment_id;
+
+  p_message := 'ok';
+END;
+$$;
+
+CREATE OR REPLACE FUNCTION sp_create_module(
+  p_course_id INTEGER,
+  p_instructor_id INTEGER,
+  p_module_title VARCHAR(255),
+  p_description TEXT,
+  OUT p_module_id INTEGER,
+  OUT p_message TEXT
+)
+LANGUAGE plpgsql
+AS $$
+DECLARE
+  v_next_module_number INTEGER;
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM courses WHERE course_id = p_course_id AND instructor_id = p_instructor_id) THEN
+    p_message := 'not_course_instructor';
+    p_module_id := NULL;
+    RETURN;
+  END IF;
+
+  PERFORM pg_advisory_xact_lock(p_course_id);
+
+  SELECT COALESCE(MAX(module_number), 0) + 1 INTO v_next_module_number FROM modules WHERE course_id = p_course_id;
+
+  INSERT INTO modules (course_id, module_number, module_title, description, created_at)
+  VALUES (p_course_id, v_next_module_number, p_module_title, p_description, CURRENT_TIMESTAMP)
+  RETURNING module_id INTO p_module_id;
+
+  p_message := 'ok';
+END;
+$$;
+
+CREATE OR REPLACE FUNCTION sp_create_material(
+  p_module_id INTEGER,
+  p_instructor_id INTEGER,
+  p_material_title VARCHAR(255),
+  p_description TEXT,
+  p_file_name VARCHAR(255),
+  p_file_path VARCHAR(512),
+  p_file_type VARCHAR(64),
+  OUT p_material_id INTEGER,
+  OUT p_message TEXT
+)
+LANGUAGE plpgsql
+AS $$
+DECLARE
+  v_course INTEGER;
+BEGIN
+  SELECT course_id INTO v_course FROM modules WHERE module_id = p_module_id;
+  IF v_course IS NULL THEN
+    p_message := 'module_not_found';
+    p_material_id := NULL;
+    RETURN;
+  END IF;
+
+  IF NOT EXISTS (SELECT 1 FROM courses WHERE course_id = v_course AND instructor_id = p_instructor_id) THEN
+    p_message := 'not_course_instructor';
+    p_material_id := NULL;
+    RETURN;
+  END IF;
+
+  INSERT INTO materials (module_id, material_title, description, file_name, file_path, file_type, created_at, upload_date)
+  VALUES (p_module_id, p_material_title, p_description, p_file_name, p_file_path, p_file_type, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+  RETURNING material_id INTO p_material_id;
 
   p_message := 'ok';
 END;

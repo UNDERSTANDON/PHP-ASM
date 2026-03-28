@@ -51,10 +51,10 @@ function lms_get_enrollment(int $studentId, int $courseId): ?array
 function lms_list_materials_for_course(int $courseId): array
 {
     $stmt = get_pdo()->prepare(
-        'SELECT m.module_number, m.module_title,
-                mat.material_id, mat.material_title, mat.description, mat.file_path, mat.file_type
+        'SELECT m.module_id, m.module_number, m.module_title, m.description AS module_desc,
+                mat.material_id, mat.material_title, mat.description, mat.file_name, mat.file_path, mat.file_type
          FROM modules m
-         INNER JOIN materials mat ON mat.module_id = m.module_id
+         LEFT JOIN materials mat ON mat.module_id = m.module_id
          WHERE m.course_id = :cid
          ORDER BY m.module_number, mat.material_id'
     );
@@ -192,4 +192,48 @@ function lms_get_user(int $userId): ?array
     $stmt->execute(['uid' => $userId]);
     $row = $stmt->fetch();
     return $row !== false ? $row : null;
+}
+
+/**
+ * @return array{instructor_id: int, user_id: int, bio: ?string, department: ?string}|null
+ */
+function lms_get_instructor_by_user_id(int $userId): ?array
+{
+    $stmt = get_pdo()->prepare(
+        'SELECT instructor_id, user_id, bio, department FROM instructors WHERE user_id = :uid LIMIT 1'
+    );
+    $stmt->execute(['uid' => $userId]);
+    $row = $stmt->fetch();
+    return $row !== false ? $row : null;
+}
+
+/**
+ * @return list<array<string, mixed>>
+ */
+function lms_list_instructor_courses(int $instructorId): array
+{
+    $sql = 'SELECT c.course_id, c.course_code, c.course_name, c.description, c.credit, c.capacity
+            FROM courses c
+            WHERE c.instructor_id = :iid
+            ORDER BY c.course_code';
+    $stmt = get_pdo()->prepare($sql);
+    $stmt->execute(['iid' => $instructorId]);
+    return $stmt->fetchAll();
+}
+
+/**
+ * @return list<array<string, mixed>>
+ */
+function lms_list_assessment_submissions(int $assessmentId): array
+{
+    $sql = 'SELECT s.submission_id, s.assessment_id, s.student_id, s.content, s.file_path, 
+                   s.submitted_at, s.status::text as status, s.score, s.feedback, u.user_name as student_name
+            FROM submissions s
+            INNER JOIN students st ON st.student_id = s.student_id
+            INNER JOIN users u ON u.user_id = st.user_id
+            WHERE s.assessment_id = :aid
+            ORDER BY s.submitted_at ASC';
+    $stmt = get_pdo()->prepare($sql);
+    $stmt->execute(['aid' => $assessmentId]);
+    return $stmt->fetchAll();
 }

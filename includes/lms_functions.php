@@ -251,3 +251,119 @@ function lms_sp_add_forum_post(
         'message' => (string) ($row['p_message'] ?? ''),
     ];
 }
+
+/**
+ * @return array{course_id: ?int, message: string}
+ */
+function lms_sp_create_course(
+    string $courseCode,
+    string $courseName,
+    ?string $description,
+    int $credit,
+    int $instructorId,
+    int $capacity
+): array {
+    $sql = 'SELECT * FROM sp_create_course(:code, :name, :descr, :credit, :instructor, :cap)';
+    $stmt = get_pdo()->prepare($sql);
+    $stmt->execute([
+        'code'       => $courseCode,
+        'name'       => $courseName,
+        'descr'      => $description,
+        'credit'     => $credit,
+        'instructor' => $instructorId,
+        'cap'        => $capacity,
+    ]);
+    $row = $stmt->fetch() ?: [];
+    $cid = $row['p_course_id'] ?? null;
+    return [
+        'course_id' => $cid !== null && $cid !== '' ? (int) $cid : null,
+        'message'   => (string) ($row['p_message'] ?? ''),
+    ];
+}
+
+/**
+ * @return array{assessment_id: ?int, message: string}
+ */
+function lms_sp_create_assessment(
+    int $courseId,
+    int $instructorId,
+    string $type,
+    string $title,
+    ?string $description,
+    int $totalPoints,
+    ?string $dueDate
+): array {
+    $sql = 'SELECT * FROM sp_create_assessment(:cid, :iid, cast(:type as assessment_type), :title, :descr, :points, cast(:due as timestamp))';
+    $stmt = get_pdo()->prepare($sql);
+    $stmt->execute([
+        'cid'    => $courseId,
+        'iid'    => $instructorId,
+        'type'   => $type,
+        'title'  => $title,
+        'descr'  => $description,
+        'points' => $totalPoints,
+        'due'    => $dueDate ?: null,
+    ]);
+    $row = $stmt->fetch() ?: [];
+    $aid = $row['p_assessment_id'] ?? null;
+    return [
+        'assessment_id' => $aid !== null && $aid !== '' ? (int) $aid : null,
+        'message'       => (string) ($row['p_message'] ?? ''),
+    ];
+}
+
+/**
+ * @return array{module_id: ?int, message: string}
+ */
+function lms_sp_create_module(
+    int $courseId,
+    int $instructorId,
+    string $moduleTitle,
+    ?string $description
+): array {
+    $sql = 'SELECT * FROM sp_create_module(:cid, :iid, :title, :descr)';
+    $stmt = get_pdo()->prepare($sql);
+    $stmt->execute([
+        'cid'   => $courseId,
+        'iid'   => $instructorId,
+        'title' => $moduleTitle,
+        'descr' => $description,
+    ]);
+    $row = $stmt->fetch() ?: [];
+    $mid = $row['p_module_id'] ?? null;
+    return [
+        'module_id' => $mid !== null && $mid !== '' ? (int) $mid : null,
+        'message'   => (string) ($row['p_message'] ?? ''),
+    ];
+}
+
+/**
+ * @return array{material_id: ?int, message: string}
+ */
+function lms_sp_create_material(
+    int $moduleId,
+    int $instructorId,
+    string $materialTitle,
+    ?string $description,
+    ?string $fileName,
+    ?string $filePath,
+    ?string $fileType
+): array {
+    $sql = 'SELECT * FROM sp_create_material(:mid, :iid, :title, :descr, :fname, :fpath, :ftype)';
+    $stmt = get_pdo()->prepare($sql);
+    $stmt->execute([
+        'mid'   => $moduleId,
+        'iid'   => $instructorId,
+        'title' => $materialTitle,
+        'descr' => $description,
+        'fname' => $fileName,
+        'fpath' => $filePath,
+        'ftype' => $fileType,
+    ]);
+    $row = $stmt->fetch() ?: [];
+    $matid = $row['p_material_id'] ?? null;
+    return [
+        'material_id' => $matid !== null && $matid !== '' ? (int) $matid : null,
+        'message'     => (string) ($row['p_message'] ?? ''),
+    ];
+}

@@ -1,2 +1,0 @@
-List of unused attributes (currently):
-1. description in forum

@@ -1,0 +1,19 @@
+Instructor Role Permissions Matrix
+==================================
+
+As implemented across the PHP-ASM LMS platform interfaces and procedures, the 'instructor' user role maintains the following strict capabilities and explicit limitations:
+
+Capabilities:
+-------------
+- Create New Courses: Instructors can create entirely new courses. The system automatically enforces their own `instructor_id` as the authoritative owner of the course.
+- Add Assessments to Owned Courses: Instructors can rapidly initialize new quizzes, assignments, and exams directly isolated under their own courses.
+- Grade Submissions: Instructors have form access and API clearance to append numerical scores and feedback onto any student submission attached back to their course.
+- Full Forum Communication: Instructors mirror the precise capabilities of students when managing forums: creating overarching topics and nesting deep replies within their courses.
+- Internal Messaging: Instructors have the same messaging capabilities and limits as students.
+
+Limitations:
+------------
+- Cannot Self-Submit: User forms for submitting assignment answers are globally hidden from their view.
+- Cannot Re-Grade: The Database layer forcefully blocks API requests and hides UI buttons for altering any submission previously flagged as definitively 'graded'.
+- Cannot Manipulate Enrollments: Instructors explicitly cannot enforce arbitrary user registrations (enroll students) or strip database pairings (drop enrollment).
+- Strict Ownership: Instructors possess absolutely zero visibility or interaction points (grading, assessing) over any external courses not cleanly linked to their internal identifier.
