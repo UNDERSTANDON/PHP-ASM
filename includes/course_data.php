@@ -106,10 +106,11 @@ function lms_student_may_access_course_content(?array $enrollment): bool
 function lms_list_course_forums(int $courseId): array
 {
     $stmt = get_pdo()->prepare(
-        'SELECT f.forum_id, f.forum_title, f.description, t.thread_id 
+        'SELECT f.forum_id, f.forum_title, f.description, MIN(t.thread_id) AS thread_id, COUNT(t.thread_id) AS thread_count 
          FROM forums f 
-         INNER JOIN threads t ON t.forum_id = f.forum_id 
+         LEFT JOIN threads t ON t.forum_id = f.forum_id 
          WHERE f.course_id = :cid 
+         GROUP BY f.forum_id 
          ORDER BY f.created_at DESC'
     );
     $stmt->execute(['cid' => $courseId]);
@@ -164,4 +165,31 @@ function lms_list_user_messages(int $userId): array
     );
     $stmt->execute(['uid' => $userId]);
     return $stmt->fetchAll();
+}
+
+/**
+ * @return array{thread_id: int, forum_id: int, course_id: int, title: string}|null
+ */
+function lms_get_thread(int $threadId): ?array
+{
+    $stmt = get_pdo()->prepare(
+        'SELECT t.thread_id, t.forum_id, f.course_id, t.title 
+         FROM threads t
+         INNER JOIN forums f ON f.forum_id = t.forum_id
+         WHERE t.thread_id = :tid LIMIT 1'
+    );
+    $stmt->execute(['tid' => $threadId]);
+    $row = $stmt->fetch();
+    return $row !== false ? $row : null;
+}
+
+/**
+ * @return array{user_id: int, role: string}|null
+ */
+function lms_get_user(int $userId): ?array
+{
+    $stmt = get_pdo()->prepare('SELECT user_id, role::text as role FROM users WHERE user_id = :uid LIMIT 1');
+    $stmt->execute(['uid' => $userId]);
+    $row = $stmt->fetch();
+    return $row !== false ? $row : null;
 }

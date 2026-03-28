@@ -232,6 +232,11 @@ function lms_sp_add_forum_post(
     int $userId,
     string $content
 ): array {
+    $content = trim($content);
+    if ($content === '') {
+        return ['post_id' => null, 'message' => 'empty_content'];
+    }
+
     $sql = 'SELECT * FROM sp_add_forum_post(:tid, :uid, :content)';
     $stmt = get_pdo()->prepare($sql);
     $stmt->execute([

@@ -621,22 +621,23 @@ BEGIN
     RETURN;
   END IF;
 
-  IF EXISTS (SELECT 1 FROM forums WHERE course_id = p_course_id AND forum_title = p_forum_title) THEN
-    p_message := 'duplicate_forum_title';
-    p_forum_id := NULL;
-    p_thread_id := NULL;
-    RETURN;
-  END IF;
+  BEGIN
+    INSERT INTO forums (course_id, forum_title, description, created_at)
+    VALUES (p_course_id, p_forum_title, p_description, CURRENT_TIMESTAMP)
+    RETURNING forum_id INTO p_forum_id;
 
-  INSERT INTO forums (course_id, forum_title, description, created_at)
-  VALUES (p_course_id, p_forum_title, p_description, CURRENT_TIMESTAMP)
-  RETURNING forum_id INTO p_forum_id;
+    INSERT INTO threads (forum_id, created_by, title, created_at)
+    VALUES (p_forum_id, p_user_id, p_forum_title, CURRENT_TIMESTAMP)
+    RETURNING thread_id INTO p_thread_id;
 
-  INSERT INTO threads (forum_id, created_by, title, created_at)
-  VALUES (p_forum_id, p_user_id, p_forum_title, CURRENT_TIMESTAMP)
-  RETURNING thread_id INTO p_thread_id;
-
-  p_message := 'ok';
+    p_message := 'ok';
+  EXCEPTION
+    WHEN unique_violation THEN
+      p_message := 'duplicate_forum_title';
+      p_forum_id := NULL;
+      p_thread_id := NULL;
+      RETURN;
+  END;
 END;
 $$;
 
@@ -682,7 +683,7 @@ BEGIN
     RETURN;
   END IF;
 
-  IF TRIM(p_content) = '' THEN
+  IF p_content IS NULL OR TRIM(p_content) = '' THEN
     p_message := 'empty_content';
     p_post_id := NULL;
     RETURN;

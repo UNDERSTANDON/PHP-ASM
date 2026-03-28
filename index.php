@@ -8,6 +8,10 @@ require_once __DIR__ . '/includes/layout.php';
 
 auth_require_login();
 
+if (empty($_SESSION['csrf_token'])) {
+    $_SESSION['csrf_token'] = bin2hex(random_bytes(32));
+}
+
 function post_int(string $key, int $default = 0): int
 {
     if (!isset($_POST[$key]) || $_POST[$key] === '') {
@@ -46,6 +50,15 @@ $testError = null;
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
     $action = (string) $_POST['action'];
+
+    if (str_starts_with($action, 'student_')) {
+        if (!isset($_POST['csrf_token']) || !hash_equals($_SESSION['csrf_token'], $_POST['csrf_token'])) {
+            error_log("CSRF validation failed for action: $action");
+            http_response_code(403);
+            die('Invalid or missing CSRF token.');
+        }
+    }
+
     try {
         if ($user['role'] === 'student') {
             if ($studentId === null) {
@@ -60,25 +73,48 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
                     post_opt_str('submission_file_path')
                 );
             } elseif ($action === 'student_create_forum') {
-                $testOutput = lms_sp_create_forum(
-                    post_int('course_id'),
-                    $user['user_id'],
-                    post_str('forum_title') !== '' ? post_str('forum_title') : 'New forum',
-                    post_opt_str('description')
-                );
+                $courseId = post_int('course_id');
+                $enrollment = lms_get_enrollment($studentId, $courseId);
+                if (!lms_student_may_access_course_content($enrollment)) {
+                    $testError = 'You do not have permission to access this course.';
+                } else {
+                    $testOutput = lms_sp_create_forum(
+                        $courseId,
+                        $user['user_id'],
+                        post_str('forum_title') !== '' ? post_str('forum_title') : 'New forum',
+                        post_opt_str('description')
+                    );
+                }
             } elseif ($action === 'student_add_post') {
-                $testOutput = lms_sp_add_forum_post(
-                    post_int('thread_id'),
-                    $user['user_id'],
-                    post_str('content')
-                );
+                $threadId = post_int('thread_id');
+                $thread = lms_get_thread($threadId);
+                if ($thread === null) {
+                    $testError = 'Thread not found.';
+                } else {
+                    $enrollment = lms_get_enrollment($studentId, (int) $thread['course_id']);
+                    if (!lms_student_may_access_course_content($enrollment)) {
+                        $testError = 'You do not have permission to post in this thread.';
+                    } else {
+                        $testOutput = lms_sp_add_forum_post(
+                            $threadId,
+                            $user['user_id'],
+                            post_str('content')
+                        );
+                    }
+                }
             } elseif ($action === 'student_send_message') {
-                $testOutput = lms_sp_send_message(
-                    $user['user_id'],
-                    post_int('recipient_id'),
-                    post_opt_str('subject'),
-                    post_str('content') !== '' ? post_str('content') : '—'
-                );
+                $recipientId = post_int('recipient_id');
+                $recipient = lms_get_user($recipientId);
+                if ($recipient === null || !in_array($recipient['role'], ['student', 'instructor'], true)) {
+                    $testError = 'Invalid recipient.';
+                } else {
+                    $testOutput = lms_sp_send_message(
+                        $user['user_id'],
+                        $recipientId,
+                        post_opt_str('subject'),
+                        post_str('content') !== '' ? post_str('content') : '—'
+                    );
+                }
             } else {
                 $testError = 'Unknown action.';
             }
@@ -227,6 +263,7 @@ layout_nav('home');
                     <?php if (student_can_use_enroll_button($en)) : ?>
                         <form method="post" class="inline-form">
                             <input type="hidden" name="action" value="student_enroll">
+                            <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($_SESSION['csrf_token']) ?>">
                             <input type="hidden" name="course_id" value="<?= $cid ?>">
                             <button type="submit">Enroll in this course</button>
                         </form>
@@ -282,6 +319,7 @@ layout_nav('home');
                                     </p>
                                     <form method="post" class="submit-form">
                                         <input type="hidden" name="action" value="student_submit">
+                                        <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($_SESSION['csrf_token']) ?>">
                                         <input type="hidden" name="assessment_id" value="<?= (int) $as['assessment_id'] ?>">
                                         <div class="row" style="flex-direction:column;align-items:stretch;">
                                             <label>Answer / notes</label>
@@ -320,6 +358,7 @@ layout_nav('home');
 
                                             <form method="post" class="inline-form" style="margin-top: 10px;">
                                                 <input type="hidden" name="action" value="student_add_post">
+                                                <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($_SESSION['csrf_token']) ?>">
                                                 <input type="hidden" name="thread_id" value="<?= (int) $forum['thread_id'] ?>">
                                                 <input type="text" name="content" required placeholder="Type a message..." style="width: 60%; padding: 4px;">
                                                 <button type="submit" style="padding: 4px 8px;">Reply</button>
@@ -331,6 +370,7 @@ layout_nav('home');
                                 <div style="margin-top: 15px; border-top: 1px solid #eee; padding-top: 10px;">
                                     <form method="post" class="inline-form">
                                         <input type="hidden" name="action" value="student_create_forum">
+                                        <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($_SESSION['csrf_token']) ?>">
                                         <input type="hidden" name="course_id" value="<?= $cid ?>">
                                         <input type="text" name="forum_title" required placeholder="New forum title..." style="width: 50%; padding: 4px;">
                                         <button type="submit" style="padding: 4px 8px;">Create Forum</button>
