@@ -59,6 +59,9 @@ function lms_sp_enroll_student(int $studentId, int $courseId): array
     $stmt = get_pdo()->prepare($sql);
     $stmt->execute(['sid' => $studentId, 'cid' => $courseId]);
     $row = $stmt->fetch() ?: [];
+    
+    lms_recalculate_student_completion($studentId, $courseId);
+    
     return ['message' => (string) ($row['p_message'] ?? '')];
 }
 
@@ -105,6 +108,13 @@ function lms_sp_upsert_submission(
     ]);
     $row = $stmt->fetch() ?: [];
     $sid = $row['p_submission_id'] ?? null;
+    
+    $sel = get_pdo()->prepare("SELECT course_id FROM assessments WHERE assessment_id = ?");
+    $sel->execute([$assessmentId]);
+    if ($courseId = $sel->fetchColumn()) {
+        lms_recalculate_student_completion($studentId, (int)$courseId);
+    }
+
     return [
         'submission_id' => $sid !== null && $sid !== '' ? (int) $sid : null,
         'message'       => (string) ($row['p_message'] ?? ''),
@@ -129,6 +139,13 @@ function lms_sp_grade_submission(
         'fb'    => $feedback,
     ]);
     $row = $stmt->fetch() ?: [];
+    
+    $sel = get_pdo()->prepare("SELECT s.student_id, a.course_id FROM submissions s INNER JOIN assessments a ON a.assessment_id = s.assessment_id WHERE s.submission_id = ?");
+    $sel->execute([$submissionId]);
+    if ($meta = $sel->fetch()) {
+        lms_recalculate_student_completion((int)$meta['student_id'], (int)$meta['course_id']);
+    }
+
     return ['message' => (string) ($row['p_message'] ?? '')];
 }
 
@@ -367,3 +384,61 @@ function lms_sp_create_material(
         'message'     => (string) ($row['p_message'] ?? ''),
     ];
 }
+
+/**
+ * Application-layer calculation for student course completion metrics.
+ * Bypasses PostgreSQL dynamic calculation as per requirements.
+ */
+function lms_recalculate_student_completion(int $studentId, int $courseId): void
+{
+    $pdo = get_pdo();
+    
+    // 1. Get total valid assessments for the course
+    $stmt = $pdo->prepare("SELECT COUNT(*) FROM assessments WHERE course_id = ? AND total_points IS NOT NULL");
+    $stmt->execute([$courseId]);
+    $totalAssessments = (int) $stmt->fetchColumn();
+    
+    // 2. Get the student's submitted assessments for this course
+    $stmt = $pdo->prepare("
+        SELECT s.score 
+        FROM submissions s 
+        INNER JOIN assessments a ON a.assessment_id = s.assessment_id 
+        WHERE a.course_id = ? AND s.student_id = ? AND a.total_points IS NOT NULL
+    ");
+    $stmt->execute([$courseId, $studentId]);
+    $submissions = $stmt->fetchAll();
+    
+    $completedCount = count($submissions);
+    
+    // 3. Math calculation for completion rate
+    $completionRate = 0.00;
+    if ($totalAssessments > 0) {
+        $completionRate = round(($completedCount / $totalAssessments) * 100, 2);
+    }
+    
+    // 4. Math calculation for average score
+    $avgScore = null;
+    $gradedSum = 0;
+    $gradedCount = 0;
+    foreach ($submissions as $sub) {
+        if ($sub['score'] !== null) {
+            $gradedSum += (float) $sub['score'];
+            $gradedCount++;
+        }
+    }
+    if ($gradedCount > 0) {
+        $avgScore = round($gradedSum / $gradedCount, 2);
+    }
+    
+    // 5. Explicitly UPSERT into the tracking table
+    $upsertStmt = $pdo->prepare("
+        INSERT INTO student_course_completion (student_id, course_id, completion_rate, avg_score, last_updated)
+        VALUES (?, ?, ?, ?, CURRENT_TIMESTAMP)
+        ON CONFLICT (student_id, course_id) DO UPDATE SET 
+            completion_rate = EXCLUDED.completion_rate,
+            avg_score = EXCLUDED.avg_score,
+            last_updated = EXCLUDED.last_updated
+    ");
+    $upsertStmt->execute([$studentId, $courseId, $completionRate, $avgScore]);
+}
+

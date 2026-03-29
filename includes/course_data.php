@@ -237,3 +237,28 @@ function lms_list_assessment_submissions(int $assessmentId): array
     $stmt->execute(['aid' => $assessmentId]);
     return $stmt->fetchAll();
 }
+
+/**
+ * @return list<array<string, mixed>>
+ */
+function lms_get_detailed_course_analytics(int $courseId): array
+{
+    $sql = "
+        SELECT 
+            u.user_name as student_name,
+            s.student_id,
+            c.completion_rate,
+            c.avg_score
+        FROM enrollments e
+        INNER JOIN students s ON s.student_id = e.student_id
+        INNER JOIN users u ON u.user_id = s.user_id
+        INNER JOIN student_course_completion c ON c.student_id = s.student_id AND c.course_id = e.course_id
+        WHERE e.course_id = :cid 
+          AND e.status = 'enrolled'
+          AND c.completion_rate > 0
+        ORDER BY u.user_name ASC
+    ";
+    $stmt = get_pdo()->prepare($sql);
+    $stmt->execute(['cid' => $courseId]);
+    return $stmt->fetchAll();
+}

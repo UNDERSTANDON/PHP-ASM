@@ -484,6 +484,7 @@ layout_nav('home');
                     <h2 class="course-heading"><?= htmlspecialchars($c['course_code']) ?> — <?= htmlspecialchars($c['course_name']) ?></h2>
                     <p class="note"><?= htmlspecialchars((string) ($c['description'] ?? '')) ?></p>
                     <p>Credits: <?= (int) $c['credit'] ?> · Capacity: <?= (int) $c['capacity'] ?></p>
+                    <a href="course_analytics.php?course_id=<?= $cid ?>" style="display:inline-block; margin-bottom: 15px; padding: 6px 14px; background: #007bff; color: white; text-decoration: none; border-radius: 4px; font-weight: 500; font-size: 0.9em;">View Analytics</a>
                     
                     <h3 class="sub-heading">Materials</h3>
                     <?php 

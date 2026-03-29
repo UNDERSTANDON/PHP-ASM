@@ -216,6 +216,15 @@ CREATE TABLE student_progress (
   UNIQUE (student_id, course_id)
 );
 
+CREATE TABLE student_course_completion (
+  student_id      INTEGER NOT NULL REFERENCES students(student_id) ON DELETE CASCADE,
+  course_id       INTEGER NOT NULL REFERENCES courses(course_id) ON DELETE CASCADE,
+  completion_rate NUMERIC(5,2) NOT NULL DEFAULT 0.00,
+  avg_score       NUMERIC(5,2),
+  last_updated    TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (student_id, course_id)
+);
+
 CREATE TABLE sessions (
   session_id SERIAL PRIMARY KEY,
   user_id    INTEGER NOT NULL REFERENCES users(user_id) ON DELETE CASCADE,
